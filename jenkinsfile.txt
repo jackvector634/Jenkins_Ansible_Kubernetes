@@ -1,0 +1,48 @@
+node {
+  stage('Git checkout'){
+    git 'https://github.com/jackvector634/Jenkins_Ansible_Kubernetes.git'
+  }
+  
+  stage('sending dockerfile to Ansible server over ssh'){
+    sshagent(['ansible_demo']) {
+      sh 'ssh -o StrictHostKeyChecking=no ubuntu@172.31.1.110'
+      sh 'scp /car/lib/jenkins/workspace/pipeline-demo/* ubuntu@172.31.1.110:/home/ubuntu/'
+    }
+  }
+  stage('Docker build image'){
+    sshagent(['ansible-demo']){
+      sh 'ssh -o StrictHostkeyChecking=no ubuntu@172.31.1.110 cd /home/ubuntu/'
+      sh 'ssh -o StrictHostkeyChecking=no ubuntu@172.31.1.110 docker image build -t $JOB_NAME:v1.$BUILD_ID .'
+    }
+  }
+  stage('docker image tagging'){
+    sshagent(['ansible_demo']) {
+      sh 'ssh -o StrictHostKeyChecking=no ubuntu@172.31.1.110 cd /home/ubuntu/'
+      sh 'ssh -o StrictHostKeyChecking=no ubuntu@172.31.1.110 docker image tag $JOB_NAME:v1.$BUILD_ID jackvector/$JOB_NAME'
+      sh 'ssh -o StrictHostKeyChecking=no ubuntu@172.31.1.110 docker image tag $JOB_NAME:v1.$BUILD_ID jackvector/$JOB_NAME'
+    }
+  }
+  stage('push docker images to dockerhub'){
+    sshagent(['ansible_demo']){
+      withCredentials([string(credentialsId: 'dockerhub_passwd',variable: 'docker_passwd')]){
+        sh "ssh -o StrictHostKeyChecking=no ubuntu@172.31.1.110 docker login -u jackvector -p ${docker_passwd}"
+        sh "ssh -o StrictHostKeyChecking=no ubuntu@172.31.1.110 docker image push jackvector/$JOB_NAME:v1.$BUILD_ID'
+        sh "ssh -o StrictHostKeyChecking=no ubuntu@172.31.1.110 docker image push jackvector/$JOB_NAME:latest'
+        sh "ssh -o StrictHostKeyChecking=no ubuntu@172.31.1.110 docker image rm jackvector/$JOB_NAME:v1.$BUILD_ID'
+      }
+    }
+  }
+  stage('push files form jenkins to kubernetes'){
+    sshagent(['kubernetes_server']){
+      sh 'ssh -o StrictHostKeyChecking=no ubuntu@172.31.1.110'
+      sh 'scp /var/lib/jenkins/workspace/pipeline-demo/* ubuntu@172.31.10.21:/home/ubuntu/'
+    }
+  }
+  stage('kubernetes deployment using ansible'){
+    sshagent(['ansible_demo']){
+      sh 'ssh -o StrictHostKeyChecking=no ubuntu@172.31.1.110 cd /home/ubuntu/'
+      sh 'ssh -o StrictHostKeyChecking=no ubuntu@172.31.1.110 ansible -ping node'
+      sh 'ssh -o StrictHostKeyChecking=no ubuntu@172.31.1.110 ansible-playbook ansible.yml'
+    }
+  }
+}

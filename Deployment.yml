@@ -1,0 +1,20 @@
+kind: Deployment
+apiVersion: apps/v1
+metadata:
+   name: jackvector
+spec:
+   replicas: 2
+   selector:      # tells the controller which pods to watch/belong to
+    matchLabels:
+     app: mrdevops
+   template:
+      metadata:
+        labels:
+          app: jackvector
+      spec:
+       containers:
+        - name: jackvector
+          image: jackvector/pipeline-demo
+          imagePullPolicy: Always
+          ports:
+          - containerPort: 80
